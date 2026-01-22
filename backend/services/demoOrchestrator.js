@@ -1,0 +1,351 @@
+/**
+ * Demo Orchestrator - Runs the perfect hackathon demo sequence
+ */
+
+class DemoOrchestrator {
+  constructor(db, io) {
+    this.db = db;
+    this.io = io;
+    this.demoSteps = [
+      'start',
+      'citizen_complaint',
+      'ticket_creation',
+      'priority_calculation',
+      'sensor_correlation',
+      'je_assignment',
+      'field_work',
+      'photo_verification',
+      'resolution',
+      'equity_update'
+    ];
+    this.currentStep = 0;
+    this.demoData = this.generateDemoData();
+  }
+  
+  generateDemoData() {
+    // Real Solapur-specific demo data
+    return {
+      citizen: {
+        name: 'Ramesh Patil',
+        phone: '+917411223344',
+        ward: 'Nana Peth',
+        issue: 'No water since yesterday morning, low pressure issue'
+      },
+      location: {
+        lat: 17.6833,
+        lng: 75.9167,
+        address: 'Near Hanuman Temple, Nana Peth, Solapur'
+      },
+      sensor: {
+        id: 'sensor-nana-peth-01',
+        pressure: 0.8, // Critical low
+        flow: 45.2,
+        battery: 67
+      },
+      je: {
+        name: 'A. Deshmukh',
+        contact: '+917890123456',
+        experience: '8 years with SMC'
+      },
+      repair: {
+        issueFound: '2-inch main line leak near valve junction',
+        partsUsed: 'PVC pipe section, clamp, sealant',
+        timeTaken: '2 hours 15 minutes',
+        waterSaved: 'Approx 25,000 liters/day'
+      }
+    };
+  }
+  
+  async startDemo() {
+    console.log('🚀 Starting JalSetu Demo Sequence...');
+    this.currentStep = 0;
+    
+    // Broadcast demo start to all connected dashboards
+    this.io.emit('demo_event', {
+      type: 'demo_started',
+      message: 'JalSetu Hackathon Demo Sequence Initiated',
+      timestamp: new Date().toISOString(),
+      step: this.demoSteps[this.currentStep]
+    });
+    
+    return { success: true, message: 'Demo started', step: this.demoSteps[this.currentStep] };
+  }
+  
+  async nextStep() {
+    if (this.currentStep >= this.demoSteps.length - 1) {
+      return this.completeDemo();
+    }
+    
+    this.currentStep++;
+    const step = this.demoSteps[this.currentStep];
+    
+    let result;
+    switch(step) {
+      case 'citizen_complaint':
+        result = await this.simulateCitizenComplaint();
+        break;
+      case 'ticket_creation':
+        result = await this.simulateTicketCreation();
+        break;
+      case 'priority_calculation':
+        result = await this.simulatePriorityCalculation();
+        break;
+      case 'sensor_correlat ion':
+        result = await this.simulateSensorCorrelation();
+        break;
+      case 'je_assignment':
+        result = await this.simulateJEAssignment();
+        break;
+      case 'field_work':
+        result = await this.simulateFieldWork();
+        break;
+      case 'photo_verification':
+        result = await this.simulatePhotoVerification();
+        break;
+      case 'resolution':
+        result = await this.simulateResolution();
+        break;
+      case 'equity_update':
+        result = await this.simulateEquityUpdate();
+        break;
+    }
+    
+    // Broadcast step completion
+    this.io.emit('demo_event', {
+      type: 'step_completed',
+      step: step,
+      data: result,
+      message: `Demo step completed: ${this.getStepDescription(step)}`,
+      timestamp: new Date().toISOString(),
+      nextStep: this.currentStep < this.demoSteps.length - 1 ? this.demoSteps[this.currentStep + 1] : null
+    });
+    
+    return {
+      step,
+      completed: true,
+      data: result,
+      next: this.currentStep < this.demoSteps.length - 1 ? this.demoSteps[this.currentStep + 1] : null
+    };
+  }
+  
+  async simulateCitizenComplaint() {
+    // Simulate WhatsApp complaint
+    const complaint = {
+      id: `comp-${Date.now()}`,
+      ...this.demoData.citizen,
+      location: this.demoData.location,
+      timestamp: new Date().toISOString(),
+      channel: 'whatsapp',
+      message: `Namaste SMC. ${this.demoData.citizen.issue}. Location: ${this.demoData.location.address}. -${this.demoData.citizen.name}`
+    };
+    
+    // Save to database (simulated)
+    await this.db.query(`
+      INSERT INTO complaints (user_id, issue, location, ward_id, created_at)
+      VALUES (1, $1, ST_SetSRID(ST_MakePoint($2, $3), 4326), 
+              (SELECT id FROM wards WHERE name = $4 LIMIT 1), NOW())
+    `, [
+      complaint.message,
+      this.demoData.location.lng,
+      this.demoData.location.lat,
+      this.demoData.citizen.ward
+    ]);
+    
+    return {
+      ...complaint,
+      ticketGenerated: false,
+      message: 'Citizen complaint received via WhatsApp bot'
+    };
+  }
+  
+  async simulateTicketCreation() {
+    // Create automated ticket
+    const ticket = {
+      id: `ticket-${Date.now()}`,
+      complaintId: `comp-${Date.now()-1000}`,
+      title: 'Water Supply Issue - Nana Peth',
+      description: this.demoData.citizen.issue,
+      createdAt: new Date().toISOString(),
+      autoGenerated: true
+    };
+    
+    await this.db.query(`
+      INSERT INTO tickets (complaint_id, title, description, status, created_at)
+      VALUES ($1, $2, $3, 'open', NOW())
+    `, [1, ticket.title, ticket.description]);
+    
+    return {
+      ...ticket,
+      message: 'Automated ticket created from complaint'
+    };
+  }
+  
+  async simulatePriorityCalculation() {
+    const PriorityEngine = require('./priorityEngine');
+    const engine = new PriorityEngine(this.db);
+    
+    const priority = await engine.calculatePriority({
+      issue: this.demoData.citizen.issue,
+      ward_id: 1, // Nana Peth
+      location: `POINT(${this.demoData.location.lng} ${this.demoData.location.lat})`
+    }, this.demoData.sensor);
+    
+    return {
+      ...priority,
+      message: `Priority calculated: ${priority.priority} with score ${priority.score}`
+    };
+  }
+  
+  async simulateSensorCorrelation() {
+    // Correlate with sensor data
+    return {
+      sensorId: this.demoData.sensor.id,
+      pressure: this.demoData.sensor.pressure,
+      status: 'CRITICAL',
+      threshold: 1.5,
+      message: `Sensor ${this.demoData.sensor.id} confirms low pressure: ${this.demoData.sensor.pressure} bar (threshold: 1.5 bar)`,
+      correlationScore: 0.92,
+      leakProbability: 0.78
+    };
+  }
+  
+  async simulateJEAssignment() {
+    // Assign to Junior Engineer
+    return {
+      assignedTo: this.demoData.je.name,
+      contact: this.demoData.je.contact,
+      assignmentTime: new Date().toISOString(),
+      estimatedArrival: '25 minutes',
+      toolsAssigned: ['leak detector', 'repair kit', 'safety gear'],
+      message: `Assigned to JE ${this.demoData.je.name} (${this.demoData.je.experience})`
+    };
+  }
+  
+  async simulateFieldWork() {
+    // Simulate field repair
+    return {
+      arrivalTime: new Date(Date.now() + 25*60000).toISOString(),
+      diagnosis: this.demoData.repair.issueFound,
+      repairStarted: new Date(Date.now() + 30*60000).toISOString(),
+      fieldNotes: 'Leak located at main junction. Repair in progress.',
+      photosTaken: 3,
+      message: 'Field engineer arrived and began repairs'
+    };
+  }
+  
+  async simulatePhotoVerification() {
+    // AI photo verification simulation
+    return {
+      beforePhoto: 'https://example.com/leak-before.jpg',
+      afterPhoto: 'https://example.com/leak-after.jpg',
+      verificationScore: 0.94,
+      aiAnalysis: 'Leak successfully sealed. Visual confirmation matches repair report.',
+      metadataCheck: {
+        geotag: 'VALID',
+        timestamp: 'VALID',
+        uniqueMatch: 'VALID'
+      },
+      message: 'AI verification confirms successful repair with 94% confidence'
+    };
+  }
+  
+  async simulateResolution() {
+    // Close the ticket
+    await this.db.query(`
+      UPDATE tickets 
+      SET status = 'closed', 
+          closed_at = NOW(),
+          closure_notes = $1
+      WHERE id = 1
+    `, [`Repair completed: ${this.demoData.repair.issueFound}. ${this.demoData.repair.waterSaved} water saved.`]);
+    
+    // Notify citizen
+    return {
+      ticketClosed: true,
+      resolutionTime: '2 hours 45 minutes total',
+      waterSaved: this.demoData.repair.waterSaved,
+      citizenNotified: true,
+      notificationMethod: 'WhatsApp',
+      message: `Issue resolved! Citizen notified. ${this.demoData.repair.waterSaved} water saved daily.`
+    };
+  }
+  
+  async simulateEquityUpdate() {
+    const EquityCalculator = require('./equityCalculator');
+    const calculator = new EquityCalculator(this.db);
+    
+    const equityUpdate = await calculator.calculateWardEquity(1); // Nana Peth
+    
+    return {
+      ...equityUpdate,
+      improvement: '+0.15 points',
+      newComplaintProjection: 'Reduced by 40% in next week',
+      message: `Ward equity updated: ${equityUpdate.equityScore} (${equityUpdate.equityLevel})`
+    };
+  }
+  
+  async completeDemo() {
+    const completionData = {
+      demoDuration: 'Approx 5 minutes',
+      stepsCompleted: this.demoSteps.length,
+      systemsDemonstrated: [
+        'Citizen Engagement (WhatsApp Bot)',
+        'Automated Ticketing',
+        'Priority Engine',
+        'Sensor Integration',
+        'JE Dispatch',
+        'Field Workflow',
+        'AI Verification',
+        'Equity Monitoring'
+      ],
+      impactMetrics: {
+        estimatedTimeSaved: '75% reduction in resolution time',
+        waterRecovery: 'Up to 30% reduction in losses',
+        citizenSatisfaction: 'Projected 4.5/5.0 rating'
+      },
+      pilotRecommendation: {
+        ward: 'Nana Peth',
+        duration: '3 months',
+        estimatedCost: '₹8.5 lakhs',
+        expectedROI: '₹22 lakhs/year water savings'
+      }
+    };
+    
+    this.io.emit('demo_event', {
+      type: 'demo_completed',
+      ...completionData,
+      timestamp: new Date().toISOString(),
+      message: '🎉 JalSetu Demo Successfully Completed!'
+    });
+    
+    return completionData;
+  }
+  
+  getStepDescription(step) {
+    const descriptions = {
+      'start': 'Demo Initialization',
+      'citizen_complaint': 'Citizen Reports Issue via WhatsApp',
+      'ticket_creation': 'Automated Ticket Generation',
+      'priority_calculation': 'AI Priority & SLA Calculation',
+      'sensor_correlation': 'Sensor Data Correlation',
+      'je_assignment': 'JE Assignment & Dispatch',
+      'field_work': 'Field Repair in Progress',
+      'photo_verification': 'AI Photo Verification',
+      'resolution': 'Issue Resolution & Citizen Notification',
+      'equity_update': 'Ward Equity Index Update'
+    };
+    return descriptions[step] || step;
+  }
+  
+  getCurrentStatus() {
+    return {
+      currentStep: this.demoSteps[this.currentStep],
+      stepDescription: this.getStepDescription(this.demoSteps[this.currentStep]),
+      totalSteps: this.demoSteps.length,
+      completedSteps: this.currentStep + 1,
+      progress: Math.round(((this.currentStep + 1) / this.demoSteps.length) * 100)
+    };
+  }
+}
+
+module.exports = DemoOrchestrator;

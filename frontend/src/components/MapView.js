@@ -1,56 +1,331 @@
-// MapView.js
 import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
-import axios from 'axios';
+import 'mapbox-gl/dist/mapbox-gl.css';
+import './MapView.css';
 
-mapboxgl.accessToken = 'YOUR_MAPBOX_ACCESS_TOKEN'; // Replace this!
+// Initialize Mapbox - REPLACE WITH YOUR ACTUAL TOKEN
+mapboxgl.accessToken = process.env.REACT_APP_MAPBOX_TOKEN || 'YOUR_MAPBOX_ACCESS_TOKEN_HERE';
 
-const MapView = () => {
+const MapView = ({ sensors = [], complaints = [] }) => {
   const mapContainer = useRef(null);
-  const [map, setMap] = useState(null);
-  const [sensorData, setSensorData] = useState([]);
+  const map = useRef(null);
+  const [lng] = useState(75.9167); // Solapur longitude
+  const [lat] = useState(17.6833); // Solapur latitude
+  const [zoom] = useState(12);
+  const [loaded, setLoaded] = useState(false);
+  const markers = useRef([]);
 
+  // Initialize map
   useEffect(() => {
-    const mapInstance = new mapboxgl.Map({
+    if (!mapContainer.current || map.current) return;
+
+    map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v11',
-      center: [75.9, 17.68],
-      zoom: 11
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center: [lng, lat],
+      zoom: zoom,
+      pitch: 45,
+      bearing: -20
     });
-    setMap(mapInstance);
-    return () => mapInstance.remove();
-  }, []);
 
-  useEffect(() => {
-    const fetchSensors = async () => {
-      try {
-        const res = await axios.get('http://localhost:5000/api/sensors');
-        setSensorData(res.data);
-      } catch (err) {
-        console.error(err);
+    map.current.on('load', () => {
+      setLoaded(true);
+      addWaterSourceLayer();
+      addWardBoundaries();
+    });
+
+    map.current.addControl(new mapboxgl.NavigationControl());
+    map.current.addControl(new mapboxgl.FullscreenControl());
+    map.current.addControl(new mapboxgl.ScaleControl());
+
+    // Cleanup
+    return () => {
+      if (map.current) {
+        map.current.remove();
+        map.current = null;
       }
     };
-    fetchSensors();
-    const interval = setInterval(fetchSensors, 10000);
-    return () => clearInterval(interval);
-  }, []);
+  }, [lng, lat, zoom]);
 
-  useEffect(() => {
-    if (!map) return;
-    sensorData.forEach(sensor => {
-      const markerColor = sensor.pressure < 2.5 ? '#dc2626' : '#16a34a';
-      new mapboxgl.Marker({ color: markerColor })
-        .setLngLat([75.9 + Math.random() * 0.05, 17.68 + Math.random() * 0.03]) // Fake coords
-        .setPopup(
-          new mapboxgl.Popup().setText(
-            `${sensor.sensor_id}: ${sensor.pressure.toFixed(2)} bar`
-          )
-        )
-        .addTo(map);
+  // Add water source visualization
+  const addWaterSourceLayer = () => {
+    if (!map.current) return;
+
+    // This would typically come from a GeoJSON API
+    const waterSources = {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          properties: { name: 'Solapur Main Reservoir', type: 'reservoir' },
+          geometry: { type: 'Point', coordinates: [75.93, 17.69] }
+        },
+        {
+          type: 'Feature',
+          properties: { name: 'North Zone Pumping Station', type: 'pumping_station' },
+          geometry: { type: 'Point', coordinates: [75.91, 17.70] }
+        },
+        {
+          type: 'Feature',
+          properties: { name: 'Central Filtration Plant', type: 'treatment_plant' },
+          geometry: { type: 'Point', coordinates: [75.92, 17.68] }
+        }
+      ]
+    };
+
+    if (map.current.getSource('water-sources')) {
+      map.current.removeLayer('water-sources');
+      map.current.removeSource('water-sources');
+    }
+
+    map.current.addSource('water-sources', {
+      type: 'geojson',
+      data: waterSources
     });
-  }, [sensorData, map]);
 
-  return <div ref={mapContainer} style={{ height: '400px', width: '100%', borderRadius: '6px', marginBottom: '1rem' }} />;
+    map.current.addLayer({
+      id: 'water-sources',
+      type: 'circle',
+      source: 'water-sources',
+      paint: {
+        'circle-radius': 10,
+        'circle-color': [
+          'match',
+          ['get', 'type'],
+          'reservoir', '#3B82F6',
+          'pumping_station', '#10B981',
+          'treatment_plant', '#8B5CF6',
+          '#6B7280'
+        ],
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#ffffff'
+      }
+    });
+  };
+
+  // Add ward boundaries (simplified for demo)
+  const addWardBoundaries = () => {
+    if (!map.current) return;
+
+    const wardBoundaries = {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          properties: { name: 'Nana Peth', equity_score: 0.6 },
+          geometry: {
+            type: 'Polygon',
+            coordinates: [[
+              [75.90, 17.68], [75.91, 17.68], [75.91, 17.69], [75.90, 17.69], [75.90, 17.68]
+            ]]
+          }
+        },
+        {
+          type: 'Feature',
+          properties: { name: 'Sadar Bazaar', equity_score: 1.2 },
+          geometry: {
+            type: 'Polygon',
+            coordinates: [[
+              [75.92, 17.67], [75.93, 17.67], [75.93, 17.68], [75.92, 17.68], [75.92, 17.67]
+            ]]
+          }
+        }
+      ]
+    };
+
+    if (map.current.getSource('ward-boundaries')) {
+      map.current.removeLayer('ward-boundaries-fill');
+      map.current.removeLayer('ward-boundaries-line');
+      map.current.removeSource('ward-boundaries');
+    }
+
+    map.current.addSource('ward-boundaries', {
+      type: 'geojson',
+      data: wardBoundaries
+    });
+
+    // Fill layer with opacity based on equity score
+    map.current.addLayer({
+      id: 'ward-boundaries-fill',
+      type: 'fill',
+      source: 'ward-boundaries',
+      paint: {
+        'fill-color': [
+          'interpolate',
+          ['linear'],
+          ['get', 'equity_score'],
+          0.3, '#EF4444',  // Red for low equity
+          0.7, '#F59E0B',  // Yellow for medium
+          1.0, '#10B981',  // Green for good
+          1.3, '#3B82F6'   // Blue for excellent
+        ],
+        'fill-opacity': 0.3
+      }
+    });
+
+    // Boundary lines
+    map.current.addLayer({
+      id: 'ward-boundaries-line',
+      type: 'line',
+      source: 'ward-boundaries',
+      paint: {
+        'line-color': '#4B5563',
+        'line-width': 2,
+        'line-dasharray': [2, 1]
+      }
+    });
+
+    // Labels
+    map.current.addLayer({
+      id: 'ward-labels',
+      type: 'symbol',
+      source: 'ward-boundaries',
+      layout: {
+        'text-field': ['get', 'name'],
+        'text-font': ['Open Sans Regular'],
+        'text-size': 12
+      },
+      paint: {
+        'text-color': '#1F2937',
+        'text-halo-color': '#FFFFFF',
+        'text-halo-width': 2
+      }
+    });
+  };
+
+  // Update markers when sensors or complaints change
+  useEffect(() => {
+    if (!map.current || !loaded) return;
+
+    // Clear existing markers
+    markers.current.forEach(marker => marker.remove());
+    markers.current = [];
+
+    // Add sensor markers
+    sensors.forEach(sensor => {
+      if (!sensor.location?.lng || !sensor.location?.lat) return;
+
+      const color = getSensorColor(sensor);
+      
+      const el = document.createElement('div');
+      el.className = 'sensor-marker';
+      el.style.backgroundColor = color;
+      el.style.width = '20px';
+      el.style.height = '20px';
+      el.style.borderRadius = '50%';
+      el.style.border = '2px solid white';
+      el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
+      el.style.cursor = 'pointer';
+      el.title = `${sensor.sensor_id}: ${sensor.pressure?.toFixed(2) || 'N/A'} bar`;
+
+      // Add pulsing animation for critical sensors
+      if (sensor.status === 'CRITICAL') {
+        el.style.animation = 'pulse 2s infinite';
+      }
+
+      const marker = new mapboxgl.Marker({ element: el })
+        .setLngLat([sensor.location.lng, sensor.location.lat])
+        .setPopup(
+          new mapboxgl.Popup({ offset: 25 })
+            .setHTML(`
+              <div class="map-popup">
+                <h4>${sensor.sensor_id}</h4>
+                <p><strong>Ward:</strong> ${sensor.ward_name || 'Unknown'}</p>
+                <p><strong>Pressure:</strong> ${sensor.pressure?.toFixed(2) || 'N/A'} bar</p>
+                <p><strong>Flow:</strong> ${sensor.flow?.toFixed(2) || 'N/A'} L/min</p>
+                <p><strong>Status:</strong> <span class="status-${sensor.status?.toLowerCase()}">${sensor.status}</span></p>
+                <p><strong>Last Reading:</strong> ${sensor.last_reading ? new Date(sensor.last_reading).toLocaleTimeString() : 'N/A'}</p>
+              </div>
+            `)
+        )
+        .addTo(map.current);
+
+      markers.current.push(marker);
+    });
+
+    // Add complaint markers
+    complaints.slice(0, 20).forEach(complaint => {
+      if (!complaint.location?.lng || !complaint.location?.lat) return;
+
+      const el = document.createElement('div');
+      el.className = 'complaint-marker';
+      el.innerHTML = '📝';
+      el.style.fontSize = '18px';
+      el.style.cursor = 'pointer';
+      el.style.filter = 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))';
+
+      const marker = new mapboxgl.Marker({ element: el })
+        .setLngLat([complaint.location.lng, complaint.location.lat])
+        .setPopup(
+          new mapboxgl.Popup({ offset: 25 })
+            .setHTML(`
+              <div class="map-popup">
+                <h4>Water Complaint</h4>
+                <p><strong>Issue:</strong> ${complaint.issue.substring(0, 100)}${complaint.issue.length > 100 ? '...' : ''}</p>
+                <p><strong>Ward:</strong> ${complaint.ward_name || 'Unknown'}</p>
+                <p><strong>Status:</strong> ${complaint.status}</p>
+                <p><strong>Reported:</strong> ${new Date(complaint.created_at).toLocaleString()}</p>
+                ${complaint.severity === 3 ? '<p class="critical-note">🚨 High Severity Issue</p>' : ''}
+              </div>
+            `)
+        )
+        .addTo(map.current);
+
+      markers.current.push(marker);
+    });
+
+  }, [sensors, complaints, loaded]);
+
+  const getSensorColor = (sensor) => {
+    const pressure = sensor.pressure || 0;
+    if (pressure < 1.5) return '#EF4444'; // Critical - Red
+    if (pressure < 2.0) return '#F59E0B'; // Warning - Yellow
+    if (pressure < 2.5) return '#3B82F6'; // Low - Blue
+    return '#10B981'; // Normal - Green
+  };
+
+  return (
+    <div className="map-container">
+      <div ref={mapContainer} className="map" />
+      <div className="map-controls">
+        <button 
+          className="map-btn"
+          onClick={() => map.current?.flyTo({ center: [lng, lat], zoom: 12 })}
+        >
+          Reset View
+        </button>
+        <button 
+          className="map-btn"
+          onClick={() => {
+            const bounds = new mapboxgl.LngLatBounds();
+            sensors.forEach(s => {
+              if (s.location?.lng && s.location?.lat) {
+                bounds.extend([s.location.lng, s.location.lat]);
+              }
+            });
+            if (bounds.isEmpty()) return;
+            map.current?.fitBounds(bounds, { padding: 50, duration: 1000 });
+          }}
+        >
+          Fit Sensors
+        </button>
+      </div>
+      <div className="map-stats">
+        <div className="map-stat">
+          <span className="stat-dot" style={{ background: '#10B981' }}></span>
+          Normal Sensors: {sensors.filter(s => (s.pressure || 0) >= 2.5).length}
+        </div>
+        <div className="map-stat">
+          <span className="stat-dot" style={{ background: '#EF4444' }}></span>
+          Critical Sensors: {sensors.filter(s => (s.pressure || 0) < 1.5).length}
+        </div>
+        <div className="map-stat">
+          <span className="stat-dot" style={{ background: '#3B82F6' }}></span>
+          Active Complaints: {complaints.filter(c => c.status !== 'resolved').length}
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default MapView;
