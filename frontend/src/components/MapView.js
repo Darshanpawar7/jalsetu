@@ -1,10 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import maplibregl from 'maplibre-gl';  // ← CHANGED
+import 'maplibre-gl/dist/maplibre-gl.css';  // ← CHANGED
 import './MapView.css';
 
-// Initialize Mapbox - REPLACE WITH YOUR ACTUAL TOKEN
-mapboxgl.accessToken = process.env.REACT_APP_MAPBOX_TOKEN || 'YOUR_MAPBOX_ACCESS_TOKEN_HERE';
+// NO TOKEN NEEDED! MapLibre is completely free
 
 const MapView = ({ sensors = [], complaints = [] }) => {
   const mapContainer = useRef(null);
@@ -19,9 +18,9 @@ const MapView = ({ sensors = [], complaints = [] }) => {
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
-    map.current = new mapboxgl.Map({
+    map.current = new maplibregl.Map({  // ← CHANGED
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
+      style: 'https://demotiles.maplibre.org/style.json',  // ← FREE professional style
       center: [lng, lat],
       zoom: zoom,
       pitch: 45,
@@ -34,9 +33,9 @@ const MapView = ({ sensors = [], complaints = [] }) => {
       addWardBoundaries();
     });
 
-    map.current.addControl(new mapboxgl.NavigationControl());
-    map.current.addControl(new mapboxgl.FullscreenControl());
-    map.current.addControl(new mapboxgl.ScaleControl());
+    map.current.addControl(new maplibregl.NavigationControl());  // ← CHANGED
+    map.current.addControl(new maplibregl.FullscreenControl());  // ← CHANGED
+    map.current.addControl(new maplibregl.ScaleControl());  // ← CHANGED
 
     // Cleanup
     return () => {
@@ -51,7 +50,6 @@ const MapView = ({ sensors = [], complaints = [] }) => {
   const addWaterSourceLayer = () => {
     if (!map.current) return;
 
-    // This would typically come from a GeoJSON API
     const waterSources = {
       type: 'FeatureCollection',
       features: [
@@ -129,6 +127,16 @@ const MapView = ({ sensors = [], complaints = [] }) => {
               [75.92, 17.67], [75.93, 17.67], [75.93, 17.68], [75.92, 17.68], [75.92, 17.67]
             ]]
           }
+        },
+        {
+          type: 'Feature',
+          properties: { name: 'Akkalkot Road', equity_score: 0.9 },
+          geometry: {
+            type: 'Polygon',
+            coordinates: [[
+              [75.89, 17.69], [75.90, 17.69], [75.90, 17.70], [75.89, 17.70], [75.89, 17.69]
+            ]]
+          }
         }
       ]
     };
@@ -182,8 +190,9 @@ const MapView = ({ sensors = [], complaints = [] }) => {
       source: 'ward-boundaries',
       layout: {
         'text-field': ['get', 'name'],
-        'text-font': ['Open Sans Regular'],
-        'text-size': 12
+        'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
+        'text-size': 12,
+        'text-offset': [0, 1]
       },
       paint: {
         'text-color': '#1F2937',
@@ -223,10 +232,10 @@ const MapView = ({ sensors = [], complaints = [] }) => {
         el.style.animation = 'pulse 2s infinite';
       }
 
-      const marker = new mapboxgl.Marker({ element: el })
+      const marker = new maplibregl.Marker({ element: el })  // ← CHANGED
         .setLngLat([sensor.location.lng, sensor.location.lat])
         .setPopup(
-          new mapboxgl.Popup({ offset: 25 })
+          new maplibregl.Popup({ offset: 25 })  // ← CHANGED
             .setHTML(`
               <div class="map-popup">
                 <h4>${sensor.sensor_id}</h4>
@@ -254,10 +263,10 @@ const MapView = ({ sensors = [], complaints = [] }) => {
       el.style.cursor = 'pointer';
       el.style.filter = 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))';
 
-      const marker = new mapboxgl.Marker({ element: el })
+      const marker = new maplibregl.Marker({ element: el })  // ← CHANGED
         .setLngLat([complaint.location.lng, complaint.location.lat])
         .setPopup(
-          new mapboxgl.Popup({ offset: 25 })
+          new maplibregl.Popup({ offset: 25 })  // ← CHANGED
             .setHTML(`
               <div class="map-popup">
                 <h4>Water Complaint</h4>
@@ -284,44 +293,74 @@ const MapView = ({ sensors = [], complaints = [] }) => {
     return '#10B981'; // Normal - Green
   };
 
+  const fitBoundsToSensors = () => {
+    if (!map.current || sensors.length === 0) return;
+    
+    const bounds = new maplibregl.LngLatBounds();  // ← CHANGED
+    
+    sensors.forEach(s => {
+      if (s.location?.lng && s.location?.lat) {
+        bounds.extend([s.location.lng, s.location.lat]);
+      }
+    });
+    
+    if (bounds.isEmpty()) {
+      // Default to Solapur bounds if no valid locations
+      bounds.extend([75.85, 17.65]);
+      bounds.extend([75.95, 17.75]);
+    }
+    
+    map.current.fitBounds(bounds, { 
+      padding: 50, 
+      duration: 1000,
+      maxZoom: 14 
+    });
+  };
+
   return (
     <div className="map-container">
       <div ref={mapContainer} className="map" />
       <div className="map-controls">
         <button 
           className="map-btn"
-          onClick={() => map.current?.flyTo({ center: [lng, lat], zoom: 12 })}
+          onClick={() => map.current?.flyTo({ center: [lng, lat], zoom: 12, duration: 1000 })}
         >
           Reset View
         </button>
         <button 
           className="map-btn"
-          onClick={() => {
-            const bounds = new mapboxgl.LngLatBounds();
-            sensors.forEach(s => {
-              if (s.location?.lng && s.location?.lat) {
-                bounds.extend([s.location.lng, s.location.lat]);
-              }
-            });
-            if (bounds.isEmpty()) return;
-            map.current?.fitBounds(bounds, { padding: 50, duration: 1000 });
-          }}
+          onClick={fitBoundsToSensors}
         >
           Fit Sensors
+        </button>
+        <button 
+          className="map-btn"
+          onClick={() => {
+            if (map.current) {
+              const currentPitch = map.current.getPitch();
+              map.current.setPitch(currentPitch === 0 ? 45 : 0);
+            }
+          }}
+        >
+          3D View
         </button>
       </div>
       <div className="map-stats">
         <div className="map-stat">
           <span className="stat-dot" style={{ background: '#10B981' }}></span>
-          Normal Sensors: {sensors.filter(s => (s.pressure || 0) >= 2.5).length}
+          Normal: {sensors.filter(s => (s.pressure || 0) >= 2.5).length}
+        </div>
+        <div className="map-stat">
+          <span className="stat-dot" style={{ background: '#F59E0B' }}></span>
+          Warning: {sensors.filter(s => (s.pressure || 0) >= 1.5 && (s.pressure || 0) < 2.5).length}
         </div>
         <div className="map-stat">
           <span className="stat-dot" style={{ background: '#EF4444' }}></span>
-          Critical Sensors: {sensors.filter(s => (s.pressure || 0) < 1.5).length}
+          Critical: {sensors.filter(s => (s.pressure || 0) < 1.5).length}
         </div>
         <div className="map-stat">
           <span className="stat-dot" style={{ background: '#3B82F6' }}></span>
-          Active Complaints: {complaints.filter(c => c.status !== 'resolved').length}
+          Complaints: {complaints.filter(c => c.status !== 'resolved').length}
         </div>
       </div>
     </div>

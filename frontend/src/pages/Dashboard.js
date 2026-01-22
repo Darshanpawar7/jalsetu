@@ -38,9 +38,9 @@ const Dashboard = ({ alerts: propAlerts }) => {
     loadDashboardData();
     
     // Set up periodic refresh
-    const interval = setInterval(loadDashboardData, 10000); // Every 10 seconds
+    //const interval = setInterval(loadDashboardData, 10000); // Every 10 seconds
     
-    return () => clearInterval(interval);
+    //return () => clearInterval(interval);
   }, []);
 
   // WebSocket setup for real-time updates

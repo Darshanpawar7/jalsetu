@@ -1,6 +1,17 @@
 const PriorityEngine = require('../services/priorityEngine');
-const { sendWhatsAppMessage } = require('../services/twilioService');
-
+// Try to load Twilio service, fallback to mock if not available
+let twilioService;
+try {
+  twilioService = require('../services/twilioService');
+} catch (error) {
+  console.log('⚠️ Twilio service not found, using mock implementation');
+  twilioService = {
+    sendWhatsAppMessage: async (to, message) => {
+      console.log(`📱 [Mock WhatsApp] To: ${to}, Message: ${message}`);
+      return { success: true, demo: true };
+    }
+  };
+}
 class ComplaintController {
   constructor(db) {
     this.db = db;
@@ -94,7 +105,7 @@ class ComplaintController {
       
       // Send acknowledgment via WhatsApp
       try {
-        await sendWhatsAppMessage(
+        await twilioService.sendWhatsAppMessage(
           phone,
           `Thank you for reporting the water issue to JalSetu Solapur. Your complaint #${complaint.id} has been registered with ${priorityData.priority} priority. Our team will address it within ${priorityData.slaHours} hours.`
         );
