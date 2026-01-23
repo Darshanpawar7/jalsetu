@@ -27,7 +27,7 @@ class SensorSimulator {
         baseFlow: 85,
         pressureRange: [0.5, 2.5],
         flowRange: [40, 120],
-        riskFactor: 0.7, // High risk area
+        riskFactor: 0.3, // High risk area
         lastPressure: 1.8,
         status: 'active',
         coordinates: { lat: 17.6845, lng: 75.9172 }
@@ -103,13 +103,13 @@ class SensorSimulator {
     this.sendSensorData();
 
     // Schedule periodic updates
-    setInterval(() => this.sendSensorData(), 5000); // Every 5 seconds
+    setInterval(() => this.sendSensorData(), 15000); // Every 15 seconds
 
     // Simulate occasional critical events
-    setInterval(() => this.simulateCriticalEvent(), 30000); // Every 30 seconds
+    setInterval(() => this.simulateCriticalEvent(), 120000); // Every 120 seconds
 
     // Generate occasional complaints
-    setInterval(() => this.generateComplaint(), 45000); // Every 45 seconds
+    setInterval(() => this.generateComplaint(), 180000); // Every 180 seconds
   }
 
   sendSensorData() {
