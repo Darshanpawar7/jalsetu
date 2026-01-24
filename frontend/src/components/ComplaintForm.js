@@ -1,6 +1,8 @@
+// frontend/src/components/ComplaintForm.js
 import React, { useState } from 'react';
-import { submitComplaint } from '../services/api';
+import { submitComplaint } from '../services/api'; // <-- corrected path
 import './ComplaintForm.css';
+import { toast } from 'react-hot-toast'; // optional, if you use toasts
 
 const ComplaintForm = () => {
   const [form, setForm] = useState({
@@ -10,7 +12,7 @@ const ComplaintForm = () => {
     location: '',
     photo: ''
   });
-  
+
   const [status, setStatus] = useState({ type: '', message: '' });
   const [loading, setLoading] = useState(false);
 
@@ -43,50 +45,31 @@ const ComplaintForm = () => {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
-          setForm(prev => ({
-            ...prev,
-            location: `POINT(${longitude} ${latitude})`
-          }));
-          setStatus({
-            type: 'success',
-            message: 'Location captured successfully'
-          });
+          setForm(prev => ({ ...prev, location: `POINT(${longitude} ${latitude})` }));
+          setStatus({ type: 'success', message: 'Location captured successfully' });
         },
         (error) => {
           console.error('Geolocation error:', error);
-          setStatus({
-            type: 'error',
-            message: 'Unable to get location. Please enter manually.'
-          });
+          setStatus({ type: 'error', message: 'Unable to get location. Please enter manually.' });
         }
       );
     } else {
-      setStatus({
-        type: 'error',
-        message: 'Geolocation not supported by your browser'
-      });
+      setStatus({ type: 'error', message: 'Geolocation not supported by your browser' });
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Validate
+
+    // Basic validation
     if (!form.phone || !form.issue) {
-      setStatus({
-        type: 'error',
-        message: 'Phone number and issue description are required'
-      });
+      setStatus({ type: 'error', message: 'Phone number and issue description are required' });
       return;
     }
 
-    // Indian phone number validation
     const phoneRegex = /^[6-9]\d{9}$/;
     if (!phoneRegex.test(form.phone.replace(/\D/g, ''))) {
-      setStatus({
-        type: 'error',
-        message: 'Please enter a valid Indian phone number'
-      });
+      setStatus({ type: 'error', message: 'Please enter a valid Indian phone number' });
       return;
     }
 
@@ -98,37 +81,36 @@ const ComplaintForm = () => {
         phone: `+91${form.phone}`,
         issue: form.issue,
         ward_name: form.ward,
-        location: form.location || `POINT(75.9167 17.6833)`, // Default Solapur center
+        location: form.location || `POINT(75.9167 17.6833)`,
         photo_url: form.photo
       };
 
-      const res = await submitComplaint(payload);
-      
-      setStatus({
-        type: 'success',
-        message: `Complaint submitted successfully! Ticket #${res.data.ticketId} created with ${res.data.priority} priority. You'll receive WhatsApp confirmation shortly.`
-      });
-      
-      // Reset form
-      setForm({
-        phone: '',
-        issue: '',
-        ward: '',
-        location: '',
-        photo: ''
-      });
+      // submitComplaint returns backend response body
+      const result = await submitComplaint(payload);
 
-      // Auto-clear success message after 10 seconds
-      setTimeout(() => {
-        setStatus({ type: '', message: '' });
-      }, 10000);
+      // Defensive: check backend's success field explicitly
+      if (result && result.success === true) {
+        const ticketText = result.ticketId ? ` Ticket #${result.ticketId}.` : '';
+        const msg = result.message || `Complaint submitted successfully.${ticketText}`;
+        setStatus({ type: 'success', message: msg });
+        if (typeof toast === 'function') toast.success(msg);
 
+        // reset form
+        setForm({ phone: '', issue: '', ward: '', location: '', photo: '' });
+
+        // optionally notify other parts of UI (socket handles real-time updates as well)
+      } else {
+        // backend returned success: false (rare)
+        const msg = result?.message || 'Failed to submit complaint. Please try again.';
+        setStatus({ type: 'error', message: msg });
+        if (typeof toast === 'function') toast.error(msg);
+      }
     } catch (error) {
+      // error normalized by api.js interceptor -> object with .message
       console.error('Complaint submission error:', error);
-      setStatus({
-        type: 'error',
-        message: error.response?.data?.error || 'Failed to submit complaint. Please try again.'
-      });
+      const msg = (error && error.message) ? error.message : 'Failed to submit complaint. Please try again.';
+      setStatus({ type: 'error', message: msg });
+      if (typeof toast === 'function') toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -139,16 +121,12 @@ const ComplaintForm = () => {
       <form onSubmit={handleSubmit}>
         <div className="form-header">
           <h4>Report Water Issue</h4>
-          <p className="form-subtitle">
-            Submit via WhatsApp: <strong>+91-XXXXXXXXXX</strong>
-          </p>
+          <p className="form-subtitle">Submit via WhatsApp: <strong>+91-XXXXXXXXXX</strong></p>
         </div>
 
-        {/* Phone Number */}
+        {/* Phone */}
         <div className="form-group">
-          <label className="form-label">
-            📱 Your Phone Number *
-          </label>
+          <label className="form-label">📱 Your Phone Number *</label>
           <div className="phone-input">
             <span className="country-code">+91</span>
             <input
@@ -162,34 +140,21 @@ const ComplaintForm = () => {
               maxLength="10"
             />
           </div>
-          <small className="form-help">
-            We'll send WhatsApp confirmation to this number
-          </small>
+          <small className="form-help">We'll send WhatsApp confirmation to this number</small>
         </div>
 
-        {/* Ward Selection */}
+        {/* Ward */}
         <div className="form-group">
-          <label className="form-label">
-            🏙️ Select Ward
-          </label>
-          <select
-            name="ward"
-            value={form.ward}
-            onChange={handleChange}
-            className="form-input"
-          >
+          <label className="form-label">🏙️ Select Ward</label>
+          <select name="ward" value={form.ward} onChange={handleChange} className="form-input">
             <option value="">Select your ward</option>
-            {solapurWards.map(ward => (
-              <option key={ward} value={ward}>{ward}</option>
-            ))}
+            {solapurWards.map(ward => <option key={ward} value={ward}>{ward}</option>)}
           </select>
         </div>
 
-        {/* Common Issues */}
+        {/* Issues */}
         <div className="form-group">
-          <label className="form-label">
-            🚰 What's the Issue? *
-          </label>
+          <label className="form-label">🚰 What's the Issue? *</label>
           <div className="issue-buttons">
             {commonIssues.map(issue => (
               <button
@@ -204,11 +169,9 @@ const ComplaintForm = () => {
           </div>
         </div>
 
-        {/* Custom Issue Description */}
+        {/* Additional details */}
         <div className="form-group">
-          <label className="form-label">
-            📝 Additional Details (Optional)
-          </label>
+          <label className="form-label">📝 Additional Details (Optional)</label>
           <textarea
             name="issue"
             placeholder="Describe the issue in detail. Include timing, duration, and any other relevant information..."
@@ -221,9 +184,7 @@ const ComplaintForm = () => {
 
         {/* Location */}
         <div className="form-group">
-          <label className="form-label">
-            📍 Location
-          </label>
+          <label className="form-label">📍 Location</label>
           <div className="location-input">
             <input
               type="text"
@@ -233,81 +194,27 @@ const ComplaintForm = () => {
               onChange={handleChange}
               className="form-input"
             />
-            <button
-              type="button"
-              className="location-btn"
-              onClick={handleCurrentLocation}
-            >
-              📍 Use My Location
-            </button>
+            <button type="button" className="location-btn" onClick={handleCurrentLocation}>📍 Use My Location</button>
           </div>
-          <small className="form-help">
-            Enter address or use GPS location
-          </small>
+          <small className="form-help">Enter address or use GPS location</small>
         </div>
 
-        {/* Photo Upload */}
+        {/* Photo */}
         <div className="form-group">
-          <label className="form-label">
-            📸 Upload Photo (Optional)
-          </label>
-          <input
-            type="text"
-            name="photo"
-            placeholder="Paste image URL or upload later via WhatsApp"
-            value={form.photo}
-            onChange={handleChange}
-            className="form-input"
-          />
-          <small className="form-help">
-            You can send photos via WhatsApp after submitting
-          </small>
+          <label className="form-label">📸 Upload Photo (Optional)</label>
+          <input type="text" name="photo" placeholder="Paste image URL or upload later via WhatsApp"
+            value={form.photo} onChange={handleChange} className="form-input" />
+          <small className="form-help">You can send photos via WhatsApp after submitting</small>
         </div>
 
-        {/* Status Message */}
-        {status.message && (
-          <div className={`status-message ${status.type}`}>
-            {status.type === 'success' ? '✅' : '❌'} {status.message}
-          </div>
-        )}
+        {/* Status */}
+        {status.message && <div className={`status-message ${status.type}`}>{status.type === 'success' ? '✅' : '❌'} {status.message}</div>}
 
-        {/* Submit Button */}
         <div className="form-actions">
-          <button
-            type="submit"
-            className="submit-btn"
-            disabled={loading}
-          >
-            {loading ? (
-              <>
-                <span className="spinner"></span>
-                Submitting...
-              </>
-            ) : (
-              '🚀 Submit Complaint'
-            )}
+          <button type="submit" className="submit-btn" disabled={loading}>
+            {loading ? (<><span className="spinner" /> Submitting...</>) : '🚀 Submit Complaint'}
           </button>
-          <p className="form-note">
-            By submitting, you agree to receive updates via WhatsApp
-          </p>
-        </div>
-
-        {/* WhatsApp QR Code */}
-        <div className="whatsapp-qr">
-          <div className="qr-code-placeholder">
-            <div className="qr-icon">📱</div>
-            <p>Scan to report via WhatsApp</p>
-          </div>
-          <div className="whatsapp-info">
-            <h5>Why WhatsApp?</h5>
-            <ul>
-              <li>No app installation required</li>
-              <li>Instant acknowledgment</li>
-              <li>Live updates on your complaint</li>
-              <li>Photo sharing capability</li>
-              <li>Available in Marathi/Hindi/English</li>
-            </ul>
-          </div>
+          <p className="form-note">By submitting, you agree to receive updates via WhatsApp</p>
         </div>
       </form>
     </div>
