@@ -27,10 +27,9 @@ JalSetu is a comprehensive smart water management system designed specifically f
 ### 1. Database Setup
 
 
-# Install PostgreSQL and Mqtt(add bin path in environment variables)
+#### Install PostgreSQL and Mqtt(add bin path in environment variables)
 
-# Create database
+#### Create database
 Create database in PgAdmin
 
-# Run schema (from backend/database/schema.sql)
-paste this code in Query tool of the database in PgAdmin 
+#### Run schema (from backend/database/schema.sql)paste this code in Query tool of the database in PgAdmin 
