@@ -1,13 +1,13 @@
 # 🚰 JalSetu - Smart Water Management System
 
-> **Winning Solution for Samved Smart Governance Hackathon**  
+> **Samved Smart Governance Hackathon**  
 > MIT Vishwaprayag University × Solapur Municipal Corporation
 
 ## 🎯 Overview
 
 JalSetu is a comprehensive smart water management system designed specifically for Solapur city. It addresses the critical water distribution challenges through IoT sensors, AI-powered analytics, and citizen engagement.
 
-### ✨ Key Features
+### Key Features
 
 - **Real-time Monitoring**: Live sensor data from water network
 - **AI Priority Engine**: Automatically prioritizes issues based on multiple factors
@@ -16,7 +16,7 @@ JalSetu is a comprehensive smart water management system designed specifically f
 - **Predictive Analytics**: Machine learning for leak prediction
 - **Demo Mode**: Complete hackathon demo sequence with storytelling
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -26,15 +26,11 @@ JalSetu is a comprehensive smart water management system designed specifically f
 
 ### 1. Database Setup
 
-```bash
-# Install PostgreSQL and PostGIS
-sudo apt-get install postgresql postgis
+
+# Install PostgreSQL and Mqtt(add bin path in environment variables)
 
 # Create database
-sudo -u postgres psql
-CREATE DATABASE jalsetu;
-\c jalsetu
-CREATE EXTENSION postgis;
+Create database in PgAdmin
 
 # Run schema (from backend/database/schema.sql)
-\i backend/database/schema.sql
+paste this code in Query tool of the database in PgAdmin 
