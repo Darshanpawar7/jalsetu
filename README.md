@@ -1,11 +1,8 @@
 # 🚰 JalSetu - Smart Water Management System
 
-> **Samved Smart Governance Hackathon**  
-> MIT Vishwaprayag University × Solapur Municipal Corporation
-
 ## 🎯 Overview
 
-JalSetu is a comprehensive smart water management system designed specifically for Solapur city. It addresses the critical water distribution challenges through IoT sensors, AI-powered analytics, and citizen engagement.
+JalSetu is a comprehensive smart water management system. It addresses the critical water distribution challenges through IoT sensors, AI-powered analytics, and citizen engagement.
 
 ### Key Features
 
