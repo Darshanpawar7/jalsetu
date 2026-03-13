@@ -1,4 +1,4 @@
-# 🚰 JalSetu - Smart Water Management System
+# 🚰JalSetu - Smart Water Management System
 
 ## 🎯 Overview
 
